@@ -1,6 +1,9 @@
 <!doctype html><html><head><meta charset="utf-8"><title>BOOT</title></head><body><div id="st">boot</div>
 <script>
-const st=t=>{document.getElementById('st').textContent=t;document.title=t.slice(0,90);};
-fetch('https://generativelanguage.googleapis.com/v1beta/models?key='+new URLSearchParams(location.search).get('gk'))
- .then(r=>{st('HTTP '+r.status);return r.text()}).then(t=>{st('OK len='+t.length)}).catch(e=>{st('ERR '+e)});
+const st=t=>{document.getElementById('st').textContent=t;document.title=t.slice(0,120);};
+const gk=new URLSearchParams(location.search).get('gk');
+const target='https://generativelanguage.googleapis.com/v1beta/models?key='+gk;
+(async()=>{
+  try{ const r=await fetch(target); st('DIRECT '+r.status); return; }catch(e){ st('DIRECT ERR '+e); }
+})();
 </script></body></html>
