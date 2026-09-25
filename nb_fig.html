@@ -3,15 +3,15 @@
 <script>
 const Q = new URLSearchParams(location.search);
 const st = t => { document.getElementById('st').textContent = t; document.title = t.slice(0,90); };
-const MODELS = ["gemini-2.5-flash-image","gemini-3-pro-image"];
+const MODELS = ["gemini-3.1-flash-image","gemini-2.5-flash-image","gemini-3-pro-image"];
 async function attempt(model, prompt, gk){
   const url = "https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent?key="+gk;
   const body = JSON.stringify({contents:[{parts:[{text:prompt}]}], generationConfig:{responseModalities:["IMAGE"]}});
   const ctl = new AbortController();
-  const to = setTimeout(()=>ctl.abort(), 150000);
+  const to = setTimeout(()=>ctl.abort(), 280000);
   try{
     const r = await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body,signal:ctl.signal});
-    if(r.status===429){ await new Promise(x=>setTimeout(x,65000)); return {retry:true}; }
+    if(r.status===429){ st("RATE "+model); await new Promise(x=>setTimeout(x,65000)); return {retry:true}; }
     const j = await r.json();
     const parts = (j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[];
     const p = parts.find(p=>p.inlineData||p.inline_data);
@@ -22,7 +22,7 @@ async function attempt(model, prompt, gk){
 }
 async function gen(){
   const GK=Q.get('gk'), PROMPT=Q.get('prompt');
-  for(let a=0;a<6;a++){
+  for(let a=0;a<9;a++){
     const model = MODELS[a % MODELS.length];
     st("GEN "+model+" try "+a);
     const res = await attempt(model, PROMPT, GK);
