@@ -2,8 +2,13 @@
 <script>
 const st=t=>{document.getElementById('st').textContent=t;document.title=t.slice(0,120);};
 const gk=new URLSearchParams(location.search).get('gk');
-const target='https://generativelanguage.googleapis.com/v1beta/models?key='+gk;
+const url='https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image:generateContent?key='+gk;
+const body=JSON.stringify({contents:[{parts:[{text:'Say the word BANANA and nothing else.'}]}]});
 (async()=>{
-  try{ const r=await fetch(target); st('DIRECT '+r.status); return; }catch(e){ st('DIRECT ERR '+e); }
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body});
+    const j=await r.json();
+    st('POST '+r.status+' '+JSON.stringify(j).slice(0,200));
+  }catch(e){ st('POST ERR '+e); }
 })();
 </script></body></html>
