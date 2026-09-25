@@ -4,11 +4,16 @@
 const Q = new URLSearchParams(location.search);
 const st = t => { document.getElementById('st').textContent = t; document.title = t.slice(0,90); };
 const MODELS = ["gemini-3.1-flash-image","gemini-2.5-flash-image","gemini-3-pro-image"];
+function show(b64){
+  const im = document.getElementById('im');
+  im.onload = () => { document.getElementById('st').style.display='none'; st("DONE "+im.naturalWidth+"x"+im.naturalHeight); };
+  im.src = "data:image/png;base64,"+b64;
+}
 async function attempt(model, prompt, gk){
   const url = "https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent?key="+gk;
   const body = JSON.stringify({contents:[{parts:[{text:prompt}]}], generationConfig:{responseModalities:["IMAGE"]}});
   const ctl = new AbortController();
-  const to = setTimeout(()=>ctl.abort(), 280000);
+  const to = setTimeout(()=>ctl.abort(), 240000);
   try{
     const r = await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body,signal:ctl.signal});
     if(r.status===429){ st("RATE "+model); await new Promise(x=>setTimeout(x,65000)); return {retry:true}; }
@@ -22,14 +27,15 @@ async function attempt(model, prompt, gk){
 }
 async function gen(){
   const GK=Q.get('gk'), PROMPT=Q.get('prompt');
+  const KEY="nb:"+PROMPT.slice(0,120)+":"+PROMPT.length;
+  try{ const c=localStorage.getItem(KEY); if(c){ show(c); return; } }catch(e){}
   for(let a=0;a<9;a++){
     const model = MODELS[a % MODELS.length];
     st("GEN "+model+" try "+a);
     const res = await attempt(model, PROMPT, GK);
     if(res.b64){
-      const im = document.getElementById('im');
-      im.onload = () => { document.getElementById('st').style.display='none'; st("DONE "+im.naturalWidth+"x"+im.naturalHeight); };
-      im.src = "data:image/png;base64,"+res.b64;
+      try{ localStorage.clear(); localStorage.setItem(KEY,res.b64); }catch(e){}
+      show(res.b64);
       return;
     }
     if(res.err && !res.retry){ st(res.err); return; }
