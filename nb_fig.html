@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8"><title>BOOT</title></head>
+<body style="margin:0;background:#fff;font-family:sans-serif"><div id="st">boot</div><img id="im" style="width:100vw;display:block">
+<script>
+const Q = new URLSearchParams(location.search);
+const st = t => { document.getElementById('st').textContent = t; document.title = t.slice(0,90); };
+async function gen(){
+  const GK=Q.get('gk'), PROMPT=Q.get('prompt');
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image:generateContent?key="+GK;
+  const body = {contents:[{parts:[{text:PROMPT}]}], generationConfig:{responseModalities:["IMAGE"]}};
+  for(let a=0;a<4;a++){
+    try{
+      st("GEN try "+a);
+      const r = await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      if(r.status===429){ st("RATE "+a); await new Promise(x=>setTimeout(x,65000)); continue; }
+      const j = await r.json();
+      const parts = (j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[];
+      const p = parts.find(p=>p.inlineData||p.inline_data);
+      if(!p){ st("NOIMG "+JSON.stringify(j).slice(0,250)); return; }
+      const b64 = (p.inlineData||p.inline_data).data;
+      const im = document.getElementById('im');
+      im.onload = () => { document.getElementById('st').style.display='none'; st("DONE "+im.naturalWidth+"x"+im.naturalHeight); };
+      im.src = "data:image/png;base64,"+b64;
+      return;
+    }catch(e){ st("ERR "+e); return; }
+  }
+  st("FAIL ratelimited");
+}
+gen();
+</script></body></html>
