@@ -1,0 +1,82 @@
+<!doctype html><html><head><meta charset="utf-8"><title>BOOT</title></head>
+<body style="margin:0;background:#fff;font-family:sans-serif"><div id="st">boot</div><img id="im" style="width:100vw;display:block">
+<script>
+const Q = new URLSearchParams(location.search);
+const st = t => { document.getElementById('st').textContent = t; document.title = t.slice(0,90); };
+const MODELS = ["gemini-3.1-flash-image","gemini-2.5-flash-image","gemini-3-pro-image"];
+let db;
+function dbopen(){ return new Promise((res,rej)=>{ const r=indexedDB.open("nbdb",1);
+  r.onupgradeneeded=()=>r.result.createObjectStore("imgs"); r.onsuccess=()=>{db=r.result;res();}; r.onerror=rej; }); }
+function dbget(k){ return new Promise((res)=>{ try{ const t=db.transaction("imgs").objectStore("imgs").get(k);
+  t.onsuccess=()=>res(t.result||null); t.onerror=()=>res(null);}catch(e){res(null);} }); }
+function dbput(k,v){ return new Promise((res)=>{ try{ const t=db.transaction("imgs","readwrite").objectStore("imgs").put(v,k);
+  t.onsuccess=()=>res(true); t.onerror=()=>res(false);}catch(e){res(false);} }); }
+async function loadJobs(){
+  const parts=[];
+  for(let k=0;k<4;k++){ const r=await fetch("jobs_"+k+".json"); parts.push(await r.json()); }
+  return parts.flat();
+}
+function show(b64, tag){
+  const im = document.getElementById('im');
+  im.onload = () => { document.getElementById('st').style.display='none'; st("DONE "+tag+" "+im.naturalWidth+"x"+im.naturalHeight); };
+  im.src = "data:image/png;base64,"+b64;
+}
+async function attempt(model, prompt, gk){
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent?key="+gk;
+  const body = JSON.stringify({contents:[{parts:[{text:prompt}]}], generationConfig:{responseModalities:["IMAGE"]}});
+  const ctl = new AbortController();
+  const to = setTimeout(()=>ctl.abort(), 240000);
+  try{
+    const r = await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body,signal:ctl.signal});
+    if(r.status===429){ await new Promise(x=>setTimeout(x,65000)); return {retry:true}; }
+    const j = await r.json();
+    const parts = (j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[];
+    const p = parts.find(p=>p.inlineData||p.inline_data);
+    if(!p) return {err:"NOIMG "+JSON.stringify(j).slice(0,200)};
+    return {b64:(p.inlineData||p.inline_data).data};
+  }catch(e){ return {retry:true, err:String(e)}; }
+  finally{ clearTimeout(to); }
+}
+async function genOne(i, job, GK){
+  const c = await dbget("img"+i); if(c) return c;
+  for(let a=0;a<9;a++){
+    const model = MODELS[a % MODELS.length];
+    st("GEN "+i+" "+model+" try "+a+" "+job.repo);
+    const res = await attempt(model, job.prompt, GK);
+    if(res.b64){ await dbput("img"+i, res.b64); return res.b64; }
+    if(res.err && !res.retry){ st("ERR "+i+" "+res.err.slice(0,80)); return null; }
+    await new Promise(x=>setTimeout(x,5000));
+  }
+  return null;
+}
+async function main(){
+  await dbopen();
+  const GK=Q.get('gk');
+  const jobs = await loadJobs();
+  const showI = Q.get('show');
+  if(showI!==null){
+    const c = await dbget("img"+showI);
+    if(c){ show(c, showI); } else { st("MISSING "+showI); }
+    return;
+  }
+  if(Q.get('all')){
+    let done=0, fail=[];
+    for(let i=0;i<jobs.length;i++){
+      const ex = await dbget("img"+i);
+      if(ex){ done++; continue; }
+      st("GEN "+i+"/"+jobs.length+" "+jobs[i].repo);
+      const r = await genOne(i, jobs[i], GK);
+      if(r){ done++; } else { fail.push(i); }
+    }
+    st("ALLDONE "+done+"/"+jobs.length+" fail=["+fail.join(",")+"]");
+    return;
+  }
+  const i = parseInt(Q.get('i')||"0",10);
+  const job = jobs[i];
+  const c = await dbget("img"+i);
+  if(c){ show(c, i); return; }
+  const r = await genOne(i, job, GK);
+  if(r){ show(r, i); } else { st("FAIL "+i); }
+}
+main().catch(e=>st("FATAL "+String(e).slice(0,120)));
+</script></body></html>
