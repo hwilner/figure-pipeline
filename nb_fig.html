@@ -3,27 +3,39 @@
 <script>
 const Q = new URLSearchParams(location.search);
 const st = t => { document.getElementById('st').textContent = t; document.title = t.slice(0,90); };
+const MODELS = ["gemini-2.5-flash-image","gemini-3-pro-image"];
+async function attempt(model, prompt, gk){
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent?key="+gk;
+  const body = JSON.stringify({contents:[{parts:[{text:prompt}]}], generationConfig:{responseModalities:["IMAGE"]}});
+  const ctl = new AbortController();
+  const to = setTimeout(()=>ctl.abort(), 150000);
+  try{
+    const r = await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body,signal:ctl.signal});
+    if(r.status===429){ await new Promise(x=>setTimeout(x,65000)); return {retry:true}; }
+    const j = await r.json();
+    const parts = (j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[];
+    const p = parts.find(p=>p.inlineData||p.inline_data);
+    if(!p) return {err:"NOIMG "+JSON.stringify(j).slice(0,250)};
+    return {b64:(p.inlineData||p.inline_data).data};
+  }catch(e){ return {retry:true, err:String(e)}; }
+  finally{ clearTimeout(to); }
+}
 async function gen(){
   const GK=Q.get('gk'), PROMPT=Q.get('prompt');
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image:generateContent?key="+GK;
-  const body = JSON.stringify({contents:[{parts:[{text:PROMPT}]}], generationConfig:{responseModalities:["IMAGE"]}});
-  for(let a=0;a<4;a++){
-    try{
-      st("GEN try "+a);
-      const r = await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body});
-      if(r.status===429){ st("RATE "+a); await new Promise(x=>setTimeout(x,65000)); continue; }
-      const j = await r.json();
-      const parts = (j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[];
-      const p = parts.find(p=>p.inlineData||p.inline_data);
-      if(!p){ st("NOIMG "+JSON.stringify(j).slice(0,250)); return; }
-      const b64 = (p.inlineData||p.inline_data).data;
+  for(let a=0;a<6;a++){
+    const model = MODELS[Math.min(a, MODELS.length-1) % MODELS.length===0?0:1] || MODELS[0];
+    st("GEN "+model+" try "+a);
+    const res = await attempt(model, PROMPT, GK);
+    if(res.b64){
       const im = document.getElementById('im');
       im.onload = () => { document.getElementById('st').style.display='none'; st("DONE "+im.naturalWidth+"x"+im.naturalHeight); };
-      im.src = "data:image/png;base64,"+b64;
+      im.src = "data:image/png;base64,"+res.b64;
       return;
-    }catch(e){ st("ERR "+e); return; }
+    }
+    if(res.err && !res.retry){ st(res.err); return; }
+    await new Promise(x=>setTimeout(x,5000));
   }
-  st("FAIL ratelimited");
+  st("FAIL");
 }
 gen();
 </script></body></html>
