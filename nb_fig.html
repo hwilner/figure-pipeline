@@ -23,7 +23,7 @@ async function attempt(model, prompt, gk){
 async function gen(){
   const GK=Q.get('gk'), PROMPT=Q.get('prompt');
   for(let a=0;a<6;a++){
-    const model = MODELS[Math.min(a, MODELS.length-1) % MODELS.length===0?0:1] || MODELS[0];
+    const model = MODELS[a % MODELS.length];
     st("GEN "+model+" try "+a);
     const res = await attempt(model, PROMPT, GK);
     if(res.b64){
