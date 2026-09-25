@@ -6,11 +6,11 @@ const st = t => { document.getElementById('st').textContent = t; document.title 
 async function gen(){
   const GK=Q.get('gk'), PROMPT=Q.get('prompt');
   const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image:generateContent?key="+GK;
-  const body = {contents:[{parts:[{text:PROMPT}]}], generationConfig:{responseModalities:["IMAGE"]}};
+  const body = JSON.stringify({contents:[{parts:[{text:PROMPT}]}], generationConfig:{responseModalities:["IMAGE"]}});
   for(let a=0;a<4;a++){
     try{
       st("GEN try "+a);
-      const r = await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      const r = await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body});
       if(r.status===429){ st("RATE "+a); await new Promise(x=>setTimeout(x,65000)); continue; }
       const j = await r.json();
       const parts = (j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts)||[];
